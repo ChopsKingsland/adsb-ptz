@@ -59,7 +59,11 @@ def _rotate_enu_by_angle(ENU: TRIPLE_FLOAT_TUPLE, degrees: float) -> TRIPLE_FLOA
 
     return (Ec, Nc, Uc)
 
-def _rotate_to_observer_frame(receiver: TRIPLE_FLOAT_TUPLE, aircraft: TRIPLE_FLOAT_TUPLE, is_angled_back_45=True) -> TRIPLE_FLOAT_TUPLE:
+def _rotate_to_observer_frame(
+    receiver: TRIPLE_FLOAT_TUPLE, 
+    aircraft: TRIPLE_FLOAT_TUPLE, 
+    is_angled_back_45=True
+) -> TRIPLE_FLOAT_TUPLE:
     """Transform relative ECEF coordinates into the observer's local ENU (or tilted mount) frame."""
     phi, lam, h = receiver
     
@@ -86,7 +90,11 @@ def _rotate_to_observer_frame(receiver: TRIPLE_FLOAT_TUPLE, aircraft: TRIPLE_FLO
 
     return (E, N, U)
 
-def calculate_azimuth_elevation(receiver: TRIPLE_FLOAT_TUPLE, aircraft: TRIPLE_FLOAT_TUPLE, is_angled_back_45=True) -> DOUBLE_FLOAT_TUPLE:
+def calculate_azimuth_elevation(
+    receiver: TRIPLE_FLOAT_TUPLE, 
+    aircraft: TRIPLE_FLOAT_TUPLE, 
+    is_angled_back_45=True
+) -> DOUBLE_FLOAT_TUPLE:
     """Calculate the Pan (Azimuth) and Tilt (Elevation) motor angles to track a given aircraft.
 
     Args:
