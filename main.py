@@ -1,6 +1,6 @@
 from dotenv import load_dotenv
 import os, requests, time, math
-from calculations import calculate_3d_distance, calculate_azimuth_elevation, TRIPLE_FLOAT_TUPLE, DOUBLE_FLOAT_TUPLE
+from calculations import calculate_3d_distance, calculate_azimuth_elevation, get_motor_angles, TRIPLE_FLOAT_TUPLE, DOUBLE_FLOAT_TUPLE
 from typing import Optional, Dict, Any
 
 FEET_TO_METRES = 0.3048
@@ -39,38 +39,10 @@ def fetch_aircraft_list(url: str) -> list[dict]:
         print(f"[WARN] HTTP Fetch Error: {e}")
         return []
 
-def get_motor_angles(az: float, el: float) -> DOUBLE_FLOAT_TUPLE:
-    # convert compass azimuth to rel bearing facing camera (-180 to +180)
-    rel_az = (az - CAMERA_HEADING + 180) % 360 - 180
 
-    if not IS_ANGLED_BACK_45:
-        # flat camera is easy
-        return rel_az, el
-
-    # for 45 deg slanted mount:
-    # conv (rel_az, el) to motor angles
-    # conv angles to radians for 3d rotation
-    az_rad = math.radians(rel_az)
-    el_rad = math.radians(el)
-    slant_rad = math.radians(45.0)
-
-    # conv spherical coordinates to 3d unit vector (x: rast/right, y: front, z: up)
-    x = math.cos(el_rad) * math.sin(az_rad)
-    y = math.cos(el_rad) * math.cos(az_rad)
-    z = math.sin(el_rad)
-
-    # rotate vector by 45 deg back around x-axis
-    y_prime = y * math.cos(slant_rad) - z * math.sin(slant_rad)
-    z_prime = y * math.sin(slant_rad) + z * math.cos(slant_rad)
-
-    # calc physical motor angles from rotated vector
-    motor_pan = math.degrees(math.atan2(x, y_prime))
-    motor_tilt = math.degrees(math.atan2(z_prime, math.sqrt(x**2 + y_prime**2)))
-
-    return motor_pan, motor_tilt
 
 def is_aircraft_visible(az: float, el: float) -> bool:
-    motor_pan, motor_tilt = get_motor_angles(az, el)
+    motor_pan, motor_tilt = get_motor_angles(az, el, CAMERA_HEADING, IS_ANGLED_BACK_45)
 
     # check if physical motor angles fall within hardware limits
     if not (-PAN_LIMIT <= motor_pan <= PAN_LIMIT):
