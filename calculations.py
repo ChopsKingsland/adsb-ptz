@@ -122,3 +122,31 @@ def calculate_azimuth_elevation(
     elevation_deg = math.degrees(elevation_rad)
     
     return (azimuth_deg, elevation_deg)
+
+def calculate_3d_distance(
+    receiver: TRIPLE_FLOAT_TUPLE, 
+    aircraft: TRIPLE_FLOAT_TUPLE
+) -> float:
+    """Calculate the distance between 2 points in 3D space.
+
+    Args:
+        receiver: Tuple of (latitude_deg, longitude_deg, altitude_m) for the observer.
+        aircraft: Tuple of (latitude_deg, longitude_deg, altitude_m) for the aircraft.
+
+    Returns:
+        float: Distance between the 2 points in metres.
+    """
+    # convert deg to rad
+    receiver = (math.radians(receiver[0]), math.radians(receiver[1]), receiver[2])
+    aircraft = (math.radians(aircraft[0]), math.radians(aircraft[1]), aircraft[2])
+    
+    # convert both coords to ecef
+    rec_ecef = _geodetic_to_ecef(receiver)
+    air_ecef = _geodetic_to_ecef(aircraft)
+    
+    # calc 3d pythag
+    return math.sqrt(
+        (rec_ecef[0] - air_ecef[0])**2 + 
+        (rec_ecef[1] - air_ecef[1])**2 + 
+        (rec_ecef[2] - air_ecef[2])**2
+    )
