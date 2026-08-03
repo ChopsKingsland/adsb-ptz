@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-import os, requests, time
+import os, requests, time, math
 from calculations import calculate_3d_distance, calculate_azimuth_elevation, TRIPLE_FLOAT_TUPLE
 from typing import Optional, Dict, Any
 
@@ -12,9 +12,10 @@ RECEIVER_LONGTIUDE = float(os.environ.get("LONGITUDE", "0.0"))
 RECEIVER_ELEVATION = float(os.environ.get("ELEVATION_METRES", "0.0"))
 URL = os.environ.get("URL", "")
 
-FLAT_TILT_MIN, FLAT_TILT_MAX = -90.0, 50.0
-SLANTED_TILT_MIN, SLANTED_TILT_MAX = -45.0, 95.0
+CAMERA_HEADING = 0.0
 PAN_LIMIT = 90.0
+TILT_MIN = -90.0
+TILT_MAX = 50.0
 IS_ANGLED_BACK_45 = True
 
 session = requests.Session()
@@ -38,13 +39,41 @@ def fetch_aircraft_list(url: str) -> list[dict]:
         print(f"[WARN] HTTP Fetch Error: {e}")
         return []
 
-def is_aircraft_visible(az: float, el: float) -> bool:
-    if az > PAN_LIMIT or az < -1*PAN_LIMIT:
+def is_aircraft_visible(az: float, el: float, is_angled_back_45: bool = True) -> bool:
+    # convert compass azimuth to rel bearing facing camera (-180 to +180)
+    rel_az = (az - CAMERA_HEADING + 180) % 360 - 180
+
+    if not is_angled_back_45:
+        # flat camera is easy
+        return (-PAN_LIMIT <= rel_az <= PAN_LIMIT) and (-90.0 <= el <= 50.0)
+
+    # for 45 deg slanted mount:
+    # conv (rel_az, el) to motor angles
+    # conv angles to radians for 3d rotation
+    az_rad = math.radians(rel_az)
+    el_rad = math.radians(el)
+    slant_rad = math.radians(45.0)
+
+    # conv spherical coordinates to 3d unit vector (x: rast/right, y: front, z: up)
+    x = math.cos(el_rad) * math.sin(az_rad)
+    y = math.cos(el_rad) * math.cos(az_rad)
+    z = math.sin(el_rad)
+
+    # rotate vector by 45 deg back around x-axis
+    y_prime = y * math.cos(slant_rad) - z * math.sin(slant_rad)
+    z_prime = y * math.sin(slant_rad) + z * math.cos(slant_rad)
+
+    # calc physical motor angles from rotated vector
+    motor_pan = math.degrees(math.atan2(x, y_prime))
+    motor_tilt = math.degrees(math.atan2(z_prime, math.sqrt(x**2 + y_prime**2)))
+
+    # check if physical motor angles fall within hardware limits
+    if not (-PAN_LIMIT <= motor_pan <= PAN_LIMIT):
         return False
-    
-    if el > SLANTED_TILT_MAX or el < SLANTED_TILT_MIN:
+
+    if not (TILT_MIN <= motor_tilt <= TILT_MAX):
         return False
-    
+
     return True
 
 def select_target_aircraft(aircraft_list: list[dict], current_hex: Optional[str]) -> Optional[dict]:
@@ -76,9 +105,13 @@ def select_target_aircraft(aircraft_list: list[dict], current_hex: Optional[str]
             "distance_m": dist_m,
             "alt_m": alt_m,
             "lat": aircraft["lat"],
-            "lon": aircraft["lon"]
+            "lon": aircraft["lon"],
+            "az": az,
+            "el": el
         }
-        valid_planes.append(plane_data)
+        
+        if is_aircraft_visible(az, el, IS_ANGLED_BACK_45):
+            valid_planes.append(plane_data)
 
     if not valid_planes:
         return None
