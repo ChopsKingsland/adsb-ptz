@@ -39,8 +39,6 @@ def fetch_aircraft_list(url: str) -> list[dict]:
         print(f"[WARN] HTTP Fetch Error: {e}")
         return []
 
-
-
 def is_aircraft_visible(az: float, el: float) -> bool:
     motor_pan, motor_tilt = get_motor_angles(az, el, CAMERA_HEADING, IS_ANGLED_BACK_45)
 
@@ -87,7 +85,7 @@ def select_target_aircraft(aircraft_list: list[dict], current_hex: Optional[str]
             "el": el
         }
         
-        if is_aircraft_visible(az, el, IS_ANGLED_BACK_45):
+        if is_aircraft_visible(az, el):
             valid_planes.append(plane_data)
 
     if not valid_planes:
@@ -102,6 +100,7 @@ def select_target_aircraft(aircraft_list: list[dict], current_hex: Optional[str]
     return valid_planes[0]
 
 def point_at_aircraft(target: dict) -> None:
+    motor_pan, motor_tilt = get_motor_angles(target["az"], target["el"], CAMERA_HEADING, IS_ANGLED_BACK_45)
     pass
 
 if __name__ == "__main__":
