@@ -1,6 +1,6 @@
 from dotenv import load_dotenv
 import os, requests, time, math
-from calculations import calculate_3d_distance, calculate_azimuth_elevation, TRIPLE_FLOAT_TUPLE
+from calculations import calculate_3d_distance, calculate_azimuth_elevation, TRIPLE_FLOAT_TUPLE, DOUBLE_FLOAT_TUPLE
 from typing import Optional, Dict, Any
 
 FEET_TO_METRES = 0.3048
@@ -39,13 +39,13 @@ def fetch_aircraft_list(url: str) -> list[dict]:
         print(f"[WARN] HTTP Fetch Error: {e}")
         return []
 
-def is_aircraft_visible(az: float, el: float, is_angled_back_45: bool = True) -> bool:
+def get_motor_angles(az: float, el: float) -> DOUBLE_FLOAT_TUPLE:
     # convert compass azimuth to rel bearing facing camera (-180 to +180)
     rel_az = (az - CAMERA_HEADING + 180) % 360 - 180
 
-    if not is_angled_back_45:
+    if not IS_ANGLED_BACK_45:
         # flat camera is easy
-        return (-PAN_LIMIT <= rel_az <= PAN_LIMIT) and (-90.0 <= el <= 50.0)
+        return rel_az, el
 
     # for 45 deg slanted mount:
     # conv (rel_az, el) to motor angles
@@ -66,6 +66,11 @@ def is_aircraft_visible(az: float, el: float, is_angled_back_45: bool = True) ->
     # calc physical motor angles from rotated vector
     motor_pan = math.degrees(math.atan2(x, y_prime))
     motor_tilt = math.degrees(math.atan2(z_prime, math.sqrt(x**2 + y_prime**2)))
+
+    return motor_pan, motor_tilt
+
+def is_aircraft_visible(az: float, el: float) -> bool:
+    motor_pan, motor_tilt = get_motor_angles(az, el)
 
     # check if physical motor angles fall within hardware limits
     if not (-PAN_LIMIT <= motor_pan <= PAN_LIMIT):
@@ -124,7 +129,7 @@ def select_target_aircraft(aircraft_list: list[dict], current_hex: Optional[str]
     valid_planes.sort(key=lambda x: x["distance_m"])
     return valid_planes[0]
 
-def point_at_aircraft(target_coords: TRIPLE_FLOAT_TUPLE) -> None:
+def point_at_aircraft(target: dict) -> None:
     pass
 
 if __name__ == "__main__":
@@ -139,7 +144,7 @@ if __name__ == "__main__":
             print(f"Tracking: {target['flight']} ({target['hex']}) | Dist: {target['distance_m']/1000:.2f}km")
             
             point_at_aircraft(
-                (target["lat"], target["lon"], target["alt_m"])
+                target
             )
         else:
             current_target_hex = None
