@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 import os, requests, time
 from calculations import calculate_3d_distance, calculate_azimuth_elevation, TRIPLE_FLOAT_TUPLE
+from typing import Optional, Dict, Any
 
 FEET_TO_METRES = 0.3048
 
@@ -11,56 +12,105 @@ RECEIVER_LONGTIUDE = float(os.environ.get("LONGITUDE", "0.0"))
 RECEIVER_ELEVATION = float(os.environ.get("ELEVATION_METRES", "0.0"))
 URL = os.environ.get("URL", "")
 
+FLAT_TILT_MIN, FLAT_TILT_MAX = -90.0, 50.0
+SLANTED_TILT_MIN, SLANTED_TILT_MAX = -45.0, 95.0
+PAN_LIMIT = 90.0
+IS_ANGLED_BACK_45 = True
 
-def find_closest_aircraft(piaware_url: str) -> dict | None:
-    resp = requests.get(piaware_url)
-    data = resp.json()
+session = requests.Session()
+
+def parse_altitude(aircraft: dict) -> float:
+    """Safely handles string "ground" or missing altitude values."""
+    alt = aircraft.get("alt_geom") or aircraft.get("alt_baro")
+    if alt == "ground" or alt is None:
+        return 0.0
+    try:
+        return float(alt) * FEET_TO_METRES
+    except (ValueError, TypeError):
+        return 0.0
+
+def fetch_aircraft_list(url: str) -> list[dict]:
+    """Fetches raw JSON feed."""
+    try:
+        resp = session.get(url, timeout=1.0)
+        return resp.json().get("aircraft", [])
+    except Exception as e:
+        print(f"[WARN] HTTP Fetch Error: {e}")
+        return []
+
+def is_aircraft_visible(az: float, el: float) -> bool:
+    if az > PAN_LIMIT or az < -1*PAN_LIMIT:
+        return False
     
-    closest_plane = None
-    min_dist_m = float("inf")
+    if el > SLANTED_TILT_MAX or el < SLANTED_TILT_MIN:
+        return False
     
-    for aircraft in data.get("aircraft", []):
-        # skip any planes with no location data
+    return True
+
+def select_target_aircraft(aircraft_list: list[dict], current_hex: Optional[str]) -> Optional[dict]:
+    """
+    Selects target with target-locking:
+    - If currently tracking a plane, stick with it until it leaves or loses signal.
+    - Otherwise, select the closest plane.
+    """
+    valid_planes = []
+    
+    for aircraft in aircraft_list:
         if "lat" not in aircraft or "lon" not in aircraft:
             continue
-        
-        alt_ft = aircraft.get("alt_geom") or aircraft.get("alt_baro") or 0
-        alt_m = alt_ft * FEET_TO_METRES
-        
+            
+        alt_m = parse_altitude(aircraft)
         dist_m = calculate_3d_distance(
             (RECEIVER_LATITUDE, RECEIVER_LONGTIUDE, RECEIVER_ELEVATION),
             (aircraft["lat"], aircraft["lon"], alt_m)
         )
         
-        if dist_m < min_dist_m:
-            min_dist_m = dist_m
-            
-            closest_plane = {
-                "hex": aircraft.get("hex"),
-                "flight": aircraft.get("flight", "N/A").strip(),
-                "distance_m": dist_m,
-                "distance_km": dist_m / 1000.0,
-                "alt_m": alt_m,
-                "lat": aircraft["lat"],
-                "lon": aircraft["lon"]
-            }
-    
-    return closest_plane
+        az, el = calculate_azimuth_elevation(
+            (RECEIVER_LATITUDE, RECEIVER_LONGTIUDE, RECEIVER_ELEVATION),
+            (aircraft["lat"], aircraft["lon"], alt_m)
+        )
+        
+        plane_data = {
+            "hex": aircraft.get("hex"),
+            "flight": aircraft.get("flight", "N/A").strip(),
+            "distance_m": dist_m,
+            "alt_m": alt_m,
+            "lat": aircraft["lat"],
+            "lon": aircraft["lon"]
+        }
+        valid_planes.append(plane_data)
 
-def point_at_aircraft(aircraft: TRIPLE_FLOAT_TUPLE) -> None:
-    # azimuth elevation stuff here
-    # point at plane etc etc
+    if not valid_planes:
+        return None
+
+    if current_hex:
+        for plane in valid_planes:
+            if plane["hex"] == current_hex and plane["distance_m"] < 15000:
+                return plane
+
+    valid_planes.sort(key=lambda x: x["distance_m"])
+    return valid_planes[0]
+
+def point_at_aircraft(target_coords: TRIPLE_FLOAT_TUPLE) -> None:
     pass
 
 if __name__ == "__main__":
-    aircraft = None
+    current_target_hex = None
+
     while True:
-        aircraft = find_closest_aircraft(URL)
-        point_at_aircraft(
-            (
-                aircraft["lat"],
-                aircraft["lon"],
-                aircraft["alt_m"]
+        aircraft_list = fetch_aircraft_list(URL)
+        target = select_target_aircraft(aircraft_list, current_target_hex)
+
+        if target:
+            current_target_hex = target["hex"]
+            print(f"Tracking: {target['flight']} ({target['hex']}) | Dist: {target['distance_m']/1000:.2f}km")
+            
+            point_at_aircraft(
+                (target["lat"], target["lon"], target["alt_m"])
             )
-        )
-        time.sleep(2)
+        else:
+            current_target_hex = None
+            print("Searching for overhead targets...")
+
+        
+        time.sleep(0.3)
