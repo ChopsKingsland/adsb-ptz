@@ -23,6 +23,10 @@ CAMERA_NODE = "/dev/video2"
 
 session = requests.Session()
 
+# variables for sharing target info with the video thread
+shared_target_info = None
+shared_target_lock = threading.Lock()
+
 def camera_feed_thread(device_node="/dev/video2"):
     cap = cv2.VideoCapture(device_node)
     
@@ -40,6 +44,25 @@ def camera_feed_thread(device_node="/dev/video2"):
             print("[WARN] Can't receive frame. Exiting ...")
             break
             
+        # draw target info
+        with shared_target_lock:
+            target = shared_target_info
+            
+        if target:
+            flight = target.get('flight', 'Unknown')
+            dist_km = target.get('distance_m', 0) / 1000.0
+            alt_m = target.get('alt_m', 0)
+            
+            # draw black background boxes for better readability
+            cv2.putText(frame, f"FLIGHT: {flight}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 4)
+            cv2.putText(frame, f"FLIGHT: {flight}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            
+            cv2.putText(frame, f"DIST: {dist_km:.1f}km | ALT: {alt_m:.0f}m", (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 4)
+            cv2.putText(frame, f"DIST: {dist_km:.1f}km | ALT: {alt_m:.0f}m", (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+        else:
+            cv2.putText(frame, "SEARCHING FOR TARGETS...", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 4)
+            cv2.putText(frame, "SEARCHING FOR TARGETS...", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+
         cv2.imshow('Camera Feed', frame)
         
         # Press 'q' to quit the window
@@ -150,6 +173,9 @@ if __name__ == "__main__":
     while True:
         aircraft_list = fetch_aircraft_list(URL)
         target = select_target_aircraft(aircraft_list, current_target_hex)
+
+        with shared_target_lock:
+            shared_target_info = target
 
         if target:
             current_target_hex = target["hex"]
