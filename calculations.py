@@ -62,7 +62,7 @@ def _rotate_enu_by_angle(ENU: TRIPLE_FLOAT_TUPLE, degrees: float) -> TRIPLE_FLOA
 def _rotate_to_observer_frame(
     receiver: TRIPLE_FLOAT_TUPLE, 
     aircraft: TRIPLE_FLOAT_TUPLE, 
-    is_angled_back_45=True
+    is_angled_back_45=False
 ) -> TRIPLE_FLOAT_TUPLE:
     """Transform relative ECEF coordinates into the observer's local ENU (or tilted mount) frame."""
     phi, lam, h = receiver
@@ -93,7 +93,7 @@ def _rotate_to_observer_frame(
 def calculate_azimuth_elevation(
     receiver: TRIPLE_FLOAT_TUPLE, 
     aircraft: TRIPLE_FLOAT_TUPLE, 
-    is_angled_back_45=True
+    is_angled_back_45=False
 ) -> DOUBLE_FLOAT_TUPLE:
     """Calculate the Pan (Azimuth) and Tilt (Elevation) motor angles to track a given aircraft.
 
@@ -156,7 +156,7 @@ def get_motor_angles(
     az: float, 
     el: float, 
     CAMERA_HEADING: float, 
-    IS_ANGLED_BACK_45: float
+    IS_ANGLED_BACK_45: bool
 ) -> DOUBLE_FLOAT_TUPLE:
     # convert compass azimuth to rel bearing facing camera (-180 to +180)
     rel_az = (az - CAMERA_HEADING + 180) % 360 - 180
