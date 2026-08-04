@@ -30,6 +30,10 @@ def camera_feed_thread(device_node="/dev/video2"):
         print("[WARN] Cannot open camera for video feed.")
         return
 
+    # force mjpg for higher fps
+    mjpg_fourcc = ord('M') | (ord('J') << 8) | (ord('P') << 16) | (ord('G') << 24)
+    cap.set(cv2.CAP_PROP_FOURCC, mjpg_fourcc)
+
     while True:
         ret, frame = cap.read()
         if not ret:
