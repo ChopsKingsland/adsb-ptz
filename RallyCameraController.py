@@ -1,4 +1,5 @@
 import subprocess
+import time
 
 class RallyCameraController:
     MAX_PAN_STEPS = 4480    # 90 deg pan
@@ -22,12 +23,14 @@ class RallyCameraController:
     
     def reset_home(self) -> None:
         """Homes camera to 0, 0."""
+        print("[INFO] Homing camera, please wait ~7 seconds...")
         cmd = [
             "v4l2-ctl", "-d", self.camera_node,
             "--set-ctrl=pan_reset=1,tilt_reset=1"
         ]
         try:
             subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            time.sleep(7)  # give camera time to sweep before sending commands
             self.current_pan_deg = 0.0
             self.current_tilt_deg = 0.0
             print("[INFO] Camera successfully homed to (0°, 0°).")
@@ -46,7 +49,8 @@ class RallyCameraController:
         delta_tilt = target_tilt - self.current_tilt_deg
 
         # convert to steps
-        rel_pan_steps = int((delta_pan / 90.0) * self.MAX_PAN_STEPS)
+        # pan is inverted
+        rel_pan_steps = -int((delta_pan / 90.0) * self.MAX_PAN_STEPS)
         # tilt is inverted
         rel_tilt_steps = -int((delta_tilt / 90.0) * self.MAX_TILT_STEPS)
 
@@ -64,7 +68,7 @@ class RallyCameraController:
                 subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 
                 # set state only after successful command
-                self.current_pan_deg += (rel_pan_steps / self.MAX_PAN_STEPS) * 90.0
+                self.current_pan_deg -= (rel_pan_steps / self.MAX_PAN_STEPS) * 90.0
                 self.current_tilt_deg -= (rel_tilt_steps / self.MAX_TILT_STEPS) * 90.0
                 print(f"[INFO] Camera pointing to az: {target_pan}, el: {target_tilt}")
             except subprocess.CalledProcessError:
