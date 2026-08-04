@@ -1,13 +1,18 @@
 import subprocess
 
 class RallyCameraController:
-    DEV_NODE = "/dev/video2"
     MAX_PAN_STEPS = 4480    # 90 deg pan
     MAX_TILT_STEPS = 1920   # full tilt travel
 
-    def __init__(self, camera_heading: float = 0.0, is_angled_back_45: bool = True):
+    def __init__(
+        self, 
+        camera_heading: float = 0.0, 
+        is_angled_back_45: bool = True, 
+        camera_node: str = "/dev/video2"
+    ):
         self.camera_heading = camera_heading
         self.is_angled_back_45 = is_angled_back_45
+        self.camera_node = camera_node
         
         # assuming centre is 0,0
         self.current_pan_deg = 0.0
@@ -18,7 +23,7 @@ class RallyCameraController:
     def reset_home(self) -> None:
         """Homes camera to 0, 0."""
         cmd = [
-            "v4l2-ctl", "-d", self.DEV_NODE,
+            "v4l2-ctl", "-d", self.camera_node,
             "--set-ctrl=pan_reset=1,tilt_reset=1"
         ]
         try:
@@ -52,7 +57,7 @@ class RallyCameraController:
         # ignore tiny jitter
         if abs(rel_pan_steps) > 30 or abs(rel_tilt_steps) > 30:
             cmd = [
-                "v4l2-ctl", "-d", self.DEV_NODE,
+                "v4l2-ctl", "-d", self.camera_node,
                 f"--set-ctrl=pan_relative={rel_pan_steps},tilt_relative={rel_tilt_steps}"
             ]
             try:

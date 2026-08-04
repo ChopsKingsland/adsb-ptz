@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-import os, requests, time, math
+import os, requests, time, cv2, threading
 from calculations import calculate_3d_distance, calculate_azimuth_elevation, get_motor_angles, TRIPLE_FLOAT_TUPLE, DOUBLE_FLOAT_TUPLE
 from typing import Optional, Dict, Any
 from RallyCameraController import RallyCameraController
@@ -19,7 +19,31 @@ TILT_MIN = -90.0
 TILT_MAX = 50.0
 IS_ANGLED_BACK_45 = True
 
+CAMERA_NODE = "/dev/video2"
+
 session = requests.Session()
+
+def camera_feed_thread(device_node="/dev/video2"):
+    cap = cv2.VideoCapture(device_node)
+    
+    if not cap.isOpened():
+        print("[WARN] Cannot open camera for video feed.")
+        return
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("[WARN] Can't receive frame. Exiting ...")
+            break
+            
+        cv2.imshow('Camera Feed', frame)
+        
+        # Press 'q' to quit the window
+        if cv2.waitKey(1) == ord('q'):
+            break
+            
+    cap.release()
+    cv2.destroyAllWindows()
 
 def parse_altitude(aircraft: dict) -> float:
     """Safely handles string "ground" or missing altitude values."""
@@ -107,7 +131,17 @@ def point_at_aircraft(target: dict, camera: RallyCameraController) -> None:
 if __name__ == "__main__":
     current_target_hex = None
     
-    camera = RallyCameraController()
+    camera = RallyCameraController(
+        is_angled_back_45=IS_ANGLED_BACK_45, 
+        camera_node=CAMERA_NODE
+    )
+    
+    video_thread = threading.Thread(
+        target=camera_feed_thread, 
+        args=(CAMERA_NODE,), 
+        daemon=True
+    )
+    video_thread.start()
 
     while True:
         aircraft_list = fetch_aircraft_list(URL)
