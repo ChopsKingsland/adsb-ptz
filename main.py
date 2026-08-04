@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 import os, requests, time, math
 from calculations import calculate_3d_distance, calculate_azimuth_elevation, get_motor_angles, TRIPLE_FLOAT_TUPLE, DOUBLE_FLOAT_TUPLE
 from typing import Optional, Dict, Any
+from RallyCameraController import RallyCameraController
 
 FEET_TO_METRES = 0.3048
 
@@ -99,12 +100,14 @@ def select_target_aircraft(aircraft_list: list[dict], current_hex: Optional[str]
     valid_planes.sort(key=lambda x: x["distance_m"])
     return valid_planes[0]
 
-def point_at_aircraft(target: dict) -> None:
+def point_at_aircraft(target: dict, camera: RallyCameraController) -> None:
     motor_pan, motor_tilt = get_motor_angles(target["az"], target["el"], CAMERA_HEADING, IS_ANGLED_BACK_45)
-    pass
+    camera.point_at_target(motor_pan, motor_tilt)
 
 if __name__ == "__main__":
     current_target_hex = None
+    
+    camera = RallyCameraController()
 
     while True:
         aircraft_list = fetch_aircraft_list(URL)
@@ -115,7 +118,8 @@ if __name__ == "__main__":
             print(f"Tracking: {target['flight']} ({target['hex']}) | Dist: {target['distance_m']/1000:.2f}km")
             
             point_at_aircraft(
-                target
+                target,
+                camera
             )
         else:
             current_target_hex = None
