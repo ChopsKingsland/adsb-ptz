@@ -52,7 +52,7 @@ class RallyCameraController:
         # pan is physically inverted on the Rally camera
         rel_pan_steps = -int((delta_pan / 90.0) * self.MAX_PAN_STEPS)
         # tilt is NOT inverted (Positive = UP)
-        rel_tilt_steps = int((delta_tilt / 90.0) * self.MAX_TILT_STEPS)
+        rel_tilt_steps = -int((delta_tilt / 90.0) * self.MAX_TILT_STEPS)
 
         # prevent hard hitting end stops
         rel_pan_steps = max(-4480, min(4480, rel_pan_steps))
@@ -75,7 +75,7 @@ class RallyCameraController:
                 
                 # set state only after successful command
                 self.current_pan_deg -= (rel_pan_steps / self.MAX_PAN_STEPS) * 90.0
-                self.current_tilt_deg += (rel_tilt_steps / self.MAX_TILT_STEPS) * 90.0
+                self.current_tilt_deg -= (rel_tilt_steps / self.MAX_TILT_STEPS) * 90.0
                 print(f"[INFO] Camera pointing to az: {target_pan}, el: {target_tilt}")
             except subprocess.CalledProcessError:
                 print("[WARN] Could not angle camera")
